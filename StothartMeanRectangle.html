@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+
+<!-- Mean Rectangles 2
+Author: Cary Stothart (cary.stothart@gmail.com)
+Version: 1.0
+    
+################################## COPYRIGHT ##################################
+The MIT License (MIT)
+Copyright (c) 2016 Cary Robert Stothart
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.     
+-->
+
+<html>
+  <head>
+    <title>Mean Rectangles 2</title>
+    <style>
+    @import url(https://fonts.googleapis.com/css?family=Press+Start+2P);
+    canvas {
+      position: absolute;
+      top: 50px;
+      left: 0px;
+      cursor: none;
+    }
+    #all {
+      width: 700px;
+      margin: 10px auto 10px auto;
+      font-family: "Arial", sans-serif;
+      font-size: 20px;  
+      text-align: center;
+    }
+    #error_msg {
+        color: #FF0000;
+    }    
+    #shipDisplay {
+      background-color: #777777;
+      z-index: -1;
+    }
+    #laserDisplay {
+      background-color: transparent;
+      z-index: 0;
+    }
+    #gameScreen {
+      font-family: 'Press Start 2P', cursive;
+      font-size: 25px;
+      position: relative;
+      display: none;
+      margin: 0 auto;
+      width: 900px;
+    }
+    #instructionScreen {
+      font-family: 'Press Start 2P', cursive;
+      font-size: 15px;
+      text-align: center;
+      display: none;
+      width: 900px;
+      margin: 0 auto;      
+    }
+    #penalty {
+      position: absolute;
+      left: 0px;
+    }
+    #penalties {
+      position: absolute;
+      left: 400px;
+    }    
+    #score {
+      position: absolute;
+      left: 620px;
+    }
+    #scoreBoard {
+      position: absolute;
+      left: 780px;
+    }
+    #getReadyText {
+      font-size: 15px;
+      position: absolute;
+      color: #FFFFFF;
+      left: 20px;
+      top: 65px;
+      width: 600px;
+    }
+    .gameButton {
+      background-color: #777777;
+      font-size: 50px;
+      width: 400px;
+      padding: 15px;
+      margin: 0 auto;
+    }
+    .gameButton:hover {
+      background-color: #BBBBBB;
+      cursor: pointer;
+    }
+    .blue {
+      color: #0000FF;
+    }
+    .green {
+      color: #00FF00;
+    }
+    .yellow {
+      color: #FFFF00;
+    } 
+    .red {
+      color: #FF0000;
+    }      
+    </style>
+  </head>
+  <body onload="init()">
+  
+    <div id="instructionScreen">
+      <br />
+      You will be playing a game!
+      <br /><br /><br />
+      Please close all other browser windows to make this game run as smoothly as possible.
+      <br /><br /><br />
+      You will control a white rectangle. Try to hit moving dots while avoiding other moving dots.
+      <br /><br /><br />
+      <span id="saferBomb"></span> 
+      <span id="deadlyBomb"></span>
+      <br /><br /><br />
+      Hit or avoid the dots by moving the white rectangle up or down using the arrow keys. 
+      You can also use your shield to block dots. You can activate your shield by holding down the spacebar. 
+      Any dots you block with your shield will have no effect on your score.
+      <br /><br /><br />
+      <span id="highestScore"></span>
+      <br /><br /><br />
+      <div class="gameButton" onclick="game.start()">START</div>
+    </div>
+    
+    <div id="gameScreen">
+      <span id="penalty">Hit Reward/Cost:</span>
+      <span id="penalties"></span>
+      <span id="score">Score:</span> <span id="scoreBoard">0000</span>
+      <canvas id="shipDisplay" width="900" height="500">
+      Your browser does not support the canvas element. Please re-load this page in another browser.
+      </canvas>
+      <canvas id="laserDisplay" width="900" height="500"></canvas>
+      <span id="getReadyText"><span id="getReadyColors"></span>
+        <br /><br /><span id="remember"></span>
+        <br /><br /><span id="toAvoid"></span>
+        <br /><br />Also remember that you can block dots by using your shield. You can use your shield by holding down the spacebar.
+        <br /><br /><span id="scoreRaise"></span></span>
+      <span id="midReminder"></span>
+    </div>
+   
+    <script>
+
+    windowActive = true;
+    
+    //////// PRIMARY CLASSES ////////
+    
+    function playerShip() {
+        this.speed = 3;
+        this.color = "#FFFFFF";
+        this.fontColor = "#000000";
+        this.width = 70;
+        this.height = 50;
+        this.shieldSize = 10;
+        this.shieldUp = false;
+        this.init = function(x, y) {
+            this.x = x;
+            this.y = y;
+        }
+        this.draw = function() {
+            this.context.clearRect(this.x-(this.shieldSize+2), this.y-(this.shieldSize+2), this.width+4+(this.shieldSize*2), this.height+4+(this.shieldSize*2));
+            this.context.save();
+            this.context.fillStyle = this.color;
+            this.context.beginPath();
+            this.context.rect(this.x, this.y, this.width, this.height);
+            this.context.closePath();
+            this.context.fill();
+            this.context.fillStyle = this.fontColor;
+            this.context.font="10px 'Press Start 2P'";
+            this.context.fillText("Score", this.x+4, this.y+20);
+            this.context.font="13px 'Press Start 2P'";
+            this.context.fillText(game.score, this.x+4, this.y+40);
+            this.shieldUp = false;
+            if(KEY_STATUS.space) {
+                this.shieldUp = true;
+                this.context.beginPath();
+                this.context.lineWidth = "4";
+                this.context.strokeStyle = "#551A8B";
+                this.context.rect(this.x-this.shieldSize, this.y-this.shieldSize, this.width+this.shieldSize*2, this.height+this.shieldSize*2);
+                this.context.stroke();
+                this.context.closePath();
+            }
+            this.context.restore();
+        }
+        this.move = function() {
+            if(KEY_STATUS.down || KEY_STATUS.up) {
+                this.context.clearRect(this.x-(this.shieldSize+2), this.y-(this.shieldSize+2), this.width+4+(this.shieldSize*2), this.height+4+(this.shieldSize*2));
+                if(KEY_STATUS.up) {
+                    game.totalMovesUp++;
+                    this.y -= this.speed
+                    if(this.y <= 0) {
+                        this.y = 0;
+                    }
+                }
+                else if(KEY_STATUS.down) {
+                    game.totalMovesDown++;
+                    this.y += this.speed;
+                    if(this.y >= this.displayHeight - this.height) {
+                       this.y = this.displayHeight - this.height;
+                    }
+                }
+                //this.draw();
+            }
+        }
+    }
+    
+    function enemyShip() {
+        this.init = function(x, y, deadly, neutral) {
+            this.speed = 2;
+            this.dY = [-1, 1][Math.floor(Math.random()*2)];
+            this.dX = [-1, 1][Math.floor(Math.random()*2)];
+            this.lastShotTime = 0;
+            this.x = x;
+            this.y = y;
+            this.deadly = deadly;
+            this.neutral = neutral;
+            this.width = 20;
+            this.height = 50;
+            this.percentMove = .01;
+            this.chance1 = 0;      
+            this.chance2 = 0;
+            if(this.deadly) {
+                this.color = game.deadlyColor;
+            }
+            else {
+                this.color = game.saferColor;
+            }
+            if(this.neutral) {
+                this.color = game.neutralColor;
+            }
+        }
+        this.draw = function() {
+            this.context.save();
+            this.context.fillStyle = this.color;
+            this.context.beginPath();
+            this.context.rect(this.x, this.y, this.width, this.height);
+            this.context.closePath();
+            this.context.fill();
+            this.context.restore();
+        }
+        this.move = function() {
+            this.context.clearRect(this.x, this.y, this.width, this.height);
+            if(this.y < 0) {
+                this.y = 0;
+                this.dY *= -1;
+            }
+            else if(this.y > this.displayHeight - this.height) {
+                this.y = this.displayHeight - this.height;
+                this.dY *= -1;
+            }
+            else if(this.x < this.displayWidth - 200 - this.width) {
+                this.x = this.displayWidth - 200 - this.width;
+                this.dX *= -1;
+            }
+            else if(this.x > this.displayWidth - this.width) {
+                this.x = this.displayWidth - this.width;
+                this.dX *= -1;
+            }
+            else {
+                this.chance1 = Math.floor(Math.random()*101);
+                if(this.chance2/100 < this.percentMove) {                
+                    this.dY *= [-1, 1][Math.floor(Math.random()*2)];
+                    this.dX *= [-1, 1][Math.floor(Math.random()*2)];
+                }
+            }
+            this.x += this.speed*this.dX;
+            this.y += this.speed*this.dY;
+            this.draw();
+            this.chance2 = Math.floor(Math.random()*101);
+            if (Math.abs(this.y - game.player.y) <= 100 & this.neutral == false) {
+                if(game.gameCurrentTime - this.lastShotTime >= 500) {
+                    this.lastShotTime = game.gameCurrentTime;
+                    this.fire();
+                }
+            }            
+        }
+        this.fire = function() {
+            if(game.gameCurrentTime - game.gameStartTime >= 40000) {
+                if(this.deadly) {
+                    game.deadlyLaserBoltPool.get(this.x-this.width, this.y+this.height/2);
+                }
+                else {
+                    game.saferLaserBoltPool.get(this.x-this.width, this.y+this.height/2);
+                }
+            }
+        }
+    }
+    
+    function distractorShipPool(maxSize) {
+        var size = maxSize;
+        var pool = [];
+        this.init = function() {
+            for(var i=0; i < size; i++) {
+                var distractor = new distractorShip();
+                pool[i] = distractor;
+            }
+        }
+        this.get = function() {
+            if(!pool[size-1].alive) {
+                pool[size-1].spawn();
+                pool.unshift(pool.pop());
+            }
+        }
+        this.animate = function() {
+            for(var i=0; i < size; i++) {
+                if(pool[i].alive) {
+                    if(pool[i].move()) {
+                        pool[i].clear();
+                        pool.push((pool.splice(i, 1))[0]);
+                    }
+                }
+                else {
+                    break;
+                }
+            }
+        }
+    }    
+    
+    function distractorShip() {
+        this.alive = false;
+        this.speed = 2;
+        this.radius = 20;
+        this.spawn = function() {
+            this.color = ["#000000", "#FFFFFF"][Math.floor(Math.random()*2)];
+            this.start = ["top", "bottom"][Math.floor(Math.random()*2)];
+            if(this.start == "top") {
+                this.dY = 1;
+            }
+            else {
+                this.dY = -1;
+            }
+            this.x = [75, 100, 125, 150, 175, 200, 225, 250, 5, 75, 100, 125, 150, 175, 200, 225, 250, 400, 425, 
+                      450, 475, 500, 525, 550, 575, 600, 625, 650][Math.floor(Math.random()*28)];        
+            if(this.start == "bottom") {
+                this.y = this.displayHeight + 5
+            }
+            else {
+                this.y = 0 - (this.radius + 5)
+            }
+            this.alive = true;
+        }
+        this.draw = function() {
+            this.context.save();
+            this.context.fillStyle = this.color;
+            this.context.beginPath();
+            this.context.arc(this.x, this.y, this.radius, 0, 
+                        (Math.PI*2), true);
+            this.context.closePath();
+            this.context.fill();
+            this.context.restore();
+        }
+        this.move = function() {
+            this.context.clearRect(this.x - this.radius, this.y - this.radius, 
+                                   this.radius*2, this.radius*2);       
+            this.y += this.speed*this.dY;
+            if(this.start == "top" && this.y >= this.displayHeight) { 
+                return true;
+            }
+            else if(this.start == "bottom" && this.y <= 0 - this.radius) { 
+                return true;
+            }
+            else {
+                this.draw();
+            }
+        }
+        this.clear = function() {
+            this.x = 0;
+            this.y = 0;
+            this.alive = false;
+        }
+    }    
+    
+    function unexpectedShip() {
+        this.init = function(x, y) {
+            this.alive = false;
+            this.hitTop = false;
+            this.speed = 1;
+            this.x = x;
+            this.y = y;
+            this.width = 20;
+            this.height = 50;
+            this.color = game.unexpectedColor;
+        }
+        this.draw = function() {
+            this.context.save();
+            this.context.fillStyle = this.color;
+            this.context.beginPath();
+            this.context.rect(this.x, this.y, this.width, this.height);
+            this.context.closePath();
+            this.context.fill();
+            this.context.restore();
+        }
+        this.move = function() {
+            this.context.clearRect(this.x, this.y, this.width, this.height); 
+            this.y -= this.speed;
+            if(this.y + this.height <= 0) {
+                this.hitTop = true;
+            }
+            this.draw();
+        }
+    }    
+    
+    function laserBoltPool(maxSize, deadly) {
+        var size = maxSize;
+        var pool = [];
+        var deadly = deadly;
+        this.init = function() {
+            for(var i=0; i < size; i++) {
+                var bolt = new laserBolt(deadly);
+                pool[i] = bolt;
+            }
+        }
+        this.get = function(x, y) {
+            if(!pool[size-1].alive) {
+                pool[size-1].spawn(x, y);
+                pool.unshift(pool.pop());
+            }
+        }
+        this.animate = function() {
+            for(var i=0; i < size; i++) {
+                if(pool[i].alive) {
+                    if(pool[i].move()) {
+                        pool[i].clear();
+                        pool.push((pool.splice(i, 1))[0]);
+                    }
+                }
+                else {
+                    break;
+                }
+            }
+        }
+    }
+    
+    function laserBolt(deadly) {
+        this.alive = false;
+        this.speed = 9; 
+        this.deadly = deadly;
+        this.radius = 6;
+        if(this.deadly) {
+            this.color = "#FFFFFF";
+            this.damage = game.deadlyBombDamage;
+        }
+        else {
+            this.color = "#FFFFFF";
+            this.damage = game.saferBombDamage;
+        }
+        this.spawn = function(x, y) {
+            this.x = x;
+            this.y = y;
+            this.alive = true;
+        }
+        this.draw = function() {
+            this.context.save();
+            this.context.fillStyle = this.color;
+            this.context.beginPath();
+            this.context.arc(this.x, this.y, this.radius, 0, 
+                        (Math.PI*2), true);
+            this.context.closePath();
+            this.context.fill();
+            this.context.restore();
+        }
+        this.move = function() {
+            this.context.clearRect(this.x - this.radius, this.y - this.radius, 
+                                   this.radius*2, this.radius*2);        
+            this.x -= this.speed;
+            if(this.x <= 0) { 
+                return true;
+            }
+            else if((this.x <= (game.player.x - (game.player.shieldSize + 2)) + (game.player.width + 4 + game.player.shieldSize*2) && this.x >= game.player.x) && 
+                    (this.y >= game.player.y - (game.player.shieldSize + 2) && this.y <= game.player.y + game.player.height + game.player.shieldSize + 2) &&
+                    game.player.shieldUp == true) {
+                if(this.damage > game.saferBombDamage) {
+                    game.highBlockCount++;
+                }
+                else {
+                    game.lowBlockCount++;
+                }
+                return true;
+            }
+            else if((this.x <= game.player.x + game.player.width && this.x >= game.player.x) && 
+                    (this.y >= game.player.y && this.y <= game.player.y + game.player.height) &&
+                    game.player.shieldUp == false) {
+                if(game.score > game.highestScore) {
+                    game.highestScore = game.score;
+                }
+                if(game.score - this.damage <= 0) {
+                    game.score = 0;
+                }
+                else {
+                    game.score -= this.damage;
+                }
+                if(this.damage > game.saferBombDamage) {
+                    game.highHitCount++;
+                    game.minHighHitCount++;
+                }
+                else {
+                    game.lowHitCount++;
+                    game.minLowHitCount++;
+                }
+                return true;
+            }
+            else {
+                this.draw();
+            }
+        }
+        this.clear = function() {
+            this.x = 0;
+            this.y = 0;
+            this.alive = false;
+        }
+    }
+
+    //////// GAME CLASSES ////////
+
+    function game() {
+        this.init = function() {
+            this.gameOver = false;
+            this.score = 0;
+            this.lowHitCount = 0;
+            this.highHitCount = 0;
+            this.lowBlockCount = 0;
+            this.highBlockCount = 0;
+            this.minLowHitCount = 0;
+            this.minHighHitCount = 0;
+            this.highestScore = 0;
+            this.totalMovesUp = 0;
+            this.totalMovesDown = 0;
+            this.lowHitCountMin1 = 0;
+            this.highHitCountMin1 = 0;
+            this.lowHitCountMin2 = 0;
+            this.highHitCountMin2 = 0;
+            this.lowHitCountMin3 = 0;
+            this.highHitCountMin3 = 0;
+            this.lowHitCountMin4 = 0;
+            this.highHitCountMin4 = 0;
+            this.lowHitCountMin5 = 0;
+            this.highHitCountMin5 = 0;
+            this.lowHitCountMin6 = 0;
+            this.highHitCountMin6 = 0;
+            this.lowHitCountMin7 = 0;
+            this.highHitCountMin7 = 0; 
+            this.lowHitCountMin8 = 0;
+            this.highHitCountMin8 = 0;             
+            this.timeWindowInactive = 0;
+            this.midReminderHidden = true;
+            this.min1Over = false;
+            this.min2Over = false;
+            this.min3Over = false;
+            this.min4Over = false;
+            this.min5Over = false;
+            this.min6Over = false;
+            this.min7Over = false;
+            this.min8Over = false;   
+            this.midReminder = false;
+            this.gameScreen = document.getElementById("gameScreen");
+            this.instructionScreen = document.getElementById("instructionScreen");
+            this.scoreBoard = document.getElementById("scoreBoard");
+            this.shipDisplay = document.getElementById("shipDisplay");
+            this.laserDisplay = document.getElementById("laserDisplay");
+            this.colorOptions = ["#00FF00", "#0000FF", "#FFFF00"];
+            this.deadlyColor = this.colorOptions[Math.floor(Math.random()*this.colorOptions.length)];
+            this.colorOptions.splice(this.colorOptions.indexOf(this.deadlyColor), 1);
+            this.saferColor = this.colorOptions[Math.floor(Math.random()*this.colorOptions.length)];
+            this.colorOptions.splice(this.colorOptions.indexOf(this.saferColor), 1);            
+            this.neutralColor = this.colorOptions[Math.floor(Math.random()*this.colorOptions.length)];
+            this.unexpectedColor = [this.saferColor, this.deadlyColor, this.otherColor][Math.floor(Math.random()*3)];
+            this.deadlyBombDamage = 1;
+            this.saferBombDamage = -1;
+            this.getReadyTextVisible = true;
+            if(this.deadlyColor == "#00FF00") {
+                this.deadlyColorString = "green";
+            }
+            else if(this.deadlyColor == "#FFFF00") {
+                this.deadlyColorString = "yellow";
+            }
+            else {
+                this.deadlyColorString = "blue";
+            }
+            if(this.saferColor == "#00FF00") {
+                this.saferColorString = "green";
+            }
+            else if(this.saferColor == "#FFFF00") {
+                this.saferColorString = "yellow";
+            }
+            else {
+                this.saferColorString = "blue";
+            }
+            if(this.shipDisplay.getContext) {
+                this.shipContext = this.shipDisplay.getContext("2d");
+                this.laserContext = this.laserDisplay.getContext("2d");
+                enemyShip.prototype.context = this.shipContext;
+                enemyShip.prototype.displayWidth = this.shipDisplay.width;
+                enemyShip.prototype.displayHeight = this.shipDisplay.height;
+                playerShip.prototype.context = this.shipContext;                
+                playerShip.prototype.displayWidth = this.shipDisplay.width;
+                playerShip.prototype.displayHeight = this.shipDisplay.height;  
+                unexpectedShip.prototype.context = this.shipContext;                  
+                laserBolt.prototype.displayWidth = this.laserDisplay.width;
+                laserBolt.prototype.displayHeight = this.laserDisplay.height;
+                laserBolt.prototype.context = this.laserDisplay.getContext("2d");
+                distractorShip.prototype.displayWidth = this.laserDisplay.width;
+                distractorShip.prototype.displayHeight = this.laserDisplay.height;
+                distractorShip.prototype.context = this.laserDisplay.getContext("2d"); 
+                this.enemy1 = new enemyShip();
+                this.enemy2 = new enemyShip();
+                this.neutral = new enemyShip();
+                this.player = new playerShip();
+                this.unexpectedShip = new unexpectedShip();
+                this.enemy1.init(800, 50, false, false);
+                this.enemy2.init(800, 400, true, false);
+                this.neutral.init(800, 300, true, true)
+                this.player.init(300, this.player.displayHeight-100);
+                this.unexpectedShip.init(25, this.shipDisplay.height+5);
+                this.deadlyLaserBoltPool = new laserBoltPool(100, true);
+                this.saferLaserBoltPool = new laserBoltPool(100, false);
+                this.distractorShips = new distractorShipPool(1);
+                this.distractorShips.init();
+                this.deadlyLaserBoltPool.init();
+                this.saferLaserBoltPool.init();
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+        this.start = function() {
+            this.instructionScreen.style.display = "none";
+            this.gameScreen.style.display = "block";
+            document.getElementById("midReminder").style.display = "none";
+            if(game.saferBombDamage <= 0) {
+                document.getElementById("penalties").innerHTML = '<span class="' + game.saferColorString + '"> +' + game.saferBombDamage.toString().slice(1) + '</span><span class="' + game.deadlyColorString + '"> -' + game.deadlyBombDamage + '</span>';
+            }
+            else {
+                document.getElementById("penalties").innerHTML = '<span class="' + game.saferColorString + '"> -' + game.saferBombDamage + '</span><span class="' + game.deadlyColorString + '"> -' + game.deadlyBombDamage + '</span>';
+            }
+            this.player.draw();
+            animate();
+            this.gameCurrentTime = new Date().getTime();
+            this.gameCurrentMinuteTime = new Date().getTime();
+            this.gameLastScoreIncrease = new Date().getTime();            
+            this.gameStartTime = new Date().getTime();
+            
+            document.getElementById("getReadyColors").innerHTML = 'The <span class="' + game.deadlyColorString + '">' + game.deadlyColorString + '</span> and <span class="' + game.saferColorString + '">' + game.saferColorString + '</span> rectangles will fire their dots at you in 40 seconds.<br /><br />Get ready by placing a finger on either the top or bottom arrow key!';
+            document.getElementById("toAvoid").innerHTML = 'Therefore, you will want to hit the dots shot by the <span class="' + game.saferColorString + '">' + game.saferColorString + '</span> rectangle and avoid the dots shot by the <span class="' + game.deadlyColorString + '">' + game.deadlyColorString + '</span> rectangle.';
+            document.getElementById("remember").innerHTML = 'Remember, you will get ' + game.saferBombDamage.toString().slice(1) + ' point for hitting a dot shot by the  <span class="' + game.saferColorString + '">' + game.saferColorString + '</span> rectangle, but you will lose ' + Math.abs(game.deadlyBombDamage) + ' point for hitting a dot shot by the <span class="' + game.deadlyColorString + '">' + game.deadlyColorString + '</span> rectangle.';
+            document.getElementById("scoreRaise").innerHTML = 'We need you to raise your score as high as possible by hitting the dots shot by the <span class="' + game.saferColorString + '">' + game.saferColorString + '</span> rectangle while avoiding the dots shot by the <span class="' + game.deadlyColorString + '">' + game.deadlyColorString + '</span> rectangle.';
+        }
+        this.end = function() {
+            window.cancelAnimationFrame(animate);
+            if(this.score > this.highestScore) {
+                this.highestScore = this.score;
+            }
+            document.game_form.low_hit_count.value = this.lowHitCount;
+            document.game_form.high_hit_count.value = this.highHitCount;
+            document.game_form.low_block_count.value = this.lowBlockCount;
+            document.game_form.high_block_count.value = this.highBlockCount;
+            document.game_form.highest_score.value = this.highestScore;
+            document.game_form.high_color.value = this.deadlyColor;
+            document.game_form.low_color.value = this.saferColor;
+            document.game_form.unexpected_color.value = this.unexpectedColor;
+            document.game_form.total_moves_up.value = this.totalMovesUp;
+            document.game_form.total_moves_down.value = this.totalMovesDown;
+            document.game_form.low_hit_count_min_1.value = this.lowHitCountMin1;
+            document.game_form.high_hit_count_min_1.value = this.highHitCountMin1;
+            document.game_form.low_hit_count_min_2.value = this.lowHitCountMin2;
+            document.game_form.high_hit_count_min_2.value = this.highHitCountMin2;
+            document.game_form.low_hit_count_min_3.value = this.lowHitCountMin3;
+            document.game_form.high_hit_count_min_3.value = this.highHitCountMin3;
+            document.game_form.low_hit_count_min_4.value = this.lowHitCountMin4;
+            document.game_form.high_hit_count_min_4.value = this.highHitCountMin4;
+            document.game_form.low_hit_count_min_5.value = this.lowHitCountMin5;
+            document.game_form.high_hit_count_min_5.value = this.highHitCountMin5;
+            document.game_form.low_hit_count_min_6.value = this.lowHitCountMin6;
+            document.game_form.high_hit_count_min_6.value = this.highHitCountMin6;
+            document.game_form.low_hit_count_min_7.value = this.lowHitCountMin7;
+            document.game_form.high_hit_count_min_7.value = this.highHitCountMin7;   
+            document.game_form.low_hit_count_min_8.value = this.lowHitCountMin8;
+            document.game_form.high_hit_count_min_8.value = this.highHitCountMin8;               
+            document.game_form.time_window_inactive.value = this.timeWindowInactive;
+            document.getElementById("gameScreen").style.display = 'none';
+        }
+    }
+    
+    //////// PRIMARY FUNCTIONS ////////
+    
+    KEY_CODES = {
+      32: 'space',
+      37: 'left',
+      38: 'up',
+      39: 'right',
+      40: 'down',
+    }
+
+    KEY_STATUS = { };
+    for(code in KEY_CODES) {
+        KEY_STATUS[ KEY_CODES[ code ]] = false;
+    }
+
+    document.onkeydown = function(event) {
+      var keyCode = (event.keyCode) ? event.keyCode : event.charCode;
+      if (KEY_CODES[keyCode]) {
+        event.preventDefault();
+        KEY_STATUS[KEY_CODES[keyCode]] = true;
+      }
+    }
+
+    document.onkeyup = function(event) {
+      var keyCode = (event.keyCode) ? event.keyCode : event.charCode;
+      if (KEY_CODES[keyCode]) {
+        event.preventDefault();
+        KEY_STATUS[KEY_CODES[keyCode]] = false;
+      }
+    }    
+    
+    requestAnimFrame = (function(){
+        return  window.requestAnimationFrame   ||
+                window.webkitRequestAnimationFrame ||
+                window.mozRequestAnimationFrame    ||
+                window.oRequestAnimationFrame      ||
+                window.msRequestAnimationFrame     ||
+                function(callback, element){
+                    window.setTimeout(callback, 1000 / 60);
+                };
+    })();
+    
+    if (!window.cancelAnimationFrame) {
+        window.cancelAnimationFrame = (window.webkitCancelRequestAnimationFrame ||
+                                      window.mozCancelRequestAnimationFrame ||
+                                      window.oCancelRequestAnimationFrame ||
+                                      window.msCancelRequestAnimationFrame ||
+                                      window.clearTimeout);
+    }    
+    
+    function animate() {
+        requestAnimFrame(animate);
+        game.gameCurrentTime = new Date().getTime();
+        game.scoreBoard.innerHTML = game.score;
+        if(game.gameCurrentTime - game.gameStartTime >= 100000 && game.min1Over == false) { // 100000 
+            game.min1Over = true;
+            game.lowHitCountMin1 = game.minLowHitCount;
+            game.highHitCountMin1 = game.minHighHitCount;
+            game.minLowHitCount = 0;
+            game.minHighHitCount = 0;
+        }
+        if(game.gameCurrentTime - game.gameStartTime >= 160000 && game.min2Over == false) {
+            game.min2Over = true;
+            game.lowHitCountMin2 = game.minLowHitCount;
+            game.highHitCountMin2 = game.minHighHitCount;
+            game.minLowHitCount = 0;
+            game.minHighHitCount = 0;
+        }
+        if(game.gameCurrentTime - game.gameStartTime >= 220000 && game.min3Over == false) {
+            game.min3Over = true;
+            game.lowHitCountMin3 = game.minLowHitCount;
+            game.highHitCountMin3 = game.minHighHitCount; 
+            game.minLowHitCount = 0;
+            game.minHighHitCount = 0;            
+        }
+        if(game.gameCurrentTime - game.gameStartTime >= 280000 && game.min4Over == false) {
+            game.min4Over = true;
+            game.lowHitCountMin4 = game.minLowHitCount;
+            game.highHitCountMin4 = game.minHighHitCount; 
+            game.minLowHitCount = 0;
+            game.minHighHitCount = 0;            
+        }
+        if(game.gameCurrentTime - game.gameStartTime >= 340000 && game.min5Over == false) {
+            game.min5Over = true;
+            game.lowHitCountMin5 = game.minLowHitCount;
+            game.highHitCountMin5 = game.minHighHitCount;
+            game.minLowHitCount = 0;
+            game.minHighHitCount = 0;
+        }
+        if(game.gameCurrentTime - game.gameStartTime >= 400000 && game.min6Over == false) {
+            game.min6Over = true;
+            game.lowHitCountMin6 = game.minLowHitCount;
+            game.highHitCountMin6 = game.minHighHitCount;
+            game.minLowHitCount = 0;
+            game.minHighHitCount = 0;
+        }
+        if(game.gameCurrentTime - game.gameStartTime >= 460000 && game.min7Over == false) {
+            game.min7Over = true;
+            game.lowHitCountMin7 = game.minLowHitCount;
+            game.highHitCountMin7 = game.minHighHitCount;
+            game.minLowHitCount = 0;
+            game.minHighHitCount = 0;
+        }
+        if(game.gameCurrentTime - game.gameStartTime >= 520000 && game.min8Over == false) {
+            game.min8Over = true;
+            game.lowHitCountMin8 = game.minLowHitCount;
+            game.highHitCountMin8 = game.minHighHitCount;
+            game.minLowHitCount = 0;
+            game.minHighHitCount = 0;
+        }
+        /*
+        if(game.gameCurrentTime - game.gameStartTime >= 505000 && game.unexpectedShip.hitTop == false) { // 505000
+            game.unexpectedShip.move();
+        }
+        if(game.gameCurrentTime - game.gameStartTime >= 520000) {  // 520000
+            game.gameOver = true;
+            game.end();
+        }*/
+        if(game.gameCurrentTime - game.gameStartTime >= 40000) {  // 40000
+            if(game.gameCurrentTime - game.gameLastScoreIncrease >= 1000) {
+                if(windowActive) {
+                    if(game.midReminderHidden == true && game.gameOver == false) {
+                        //game.score += 2;
+                        game.distractorShips.get();
+                    }
+                }
+                else {
+                    game.timeWindowInactive++;
+                }
+                    game.gameLastScoreIncrease = game.gameCurrentTime;
+            }
+            game.getReadyTextVisible = false;
+            document.getElementById("getReadyText").style.display = "none";
+        }
+        game.enemy1.move();
+        game.enemy2.move();
+        game.neutral.move();
+        game.player.move();
+        game.player.draw();
+        game.distractorShips.animate();
+        game.deadlyLaserBoltPool.animate();
+        game.saferLaserBoltPool.animate();
+    }
+    
+    var game = new game();
+    
+    function init() {
+        if(game.init()) {
+            game.instructionScreen.style.display = "block";
+            document.getElementById("deadlyBomb").innerHTML = 'But, if you hit a dot shot by the <span class="' + game.deadlyColorString + '">' + game.deadlyColorString + '</span> rectangle, you will lose ' + Math.abs(game.deadlyBombDamage) + ' point!';
+            document.getElementById("saferBomb").innerHTML = 'If you hit a dot shot by the <span class="' + game.saferColorString + '">' + game.saferColorString + '</span> rectangle, you will get ' + game.saferBombDamage.toString().slice(1) + ' point.';            
+            document.getElementById("highestScore").innerHTML = 'Try your best to get the highest score by hitting the dots shot by the <span class="' + game.saferColorString + '">' + game.saferColorString + '</span> rectangle and avoiding the dots shot by the <span class="' + game.deadlyColorString + '">' + game.deadlyColorString + '</span> rectangle.';
+        }
+    }
+    
+    </script>
+
+  </body>
+</html>
